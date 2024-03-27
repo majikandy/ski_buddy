@@ -1,0 +1,34 @@
+# Git
+.git
+.gitignore
+
+# Rust
+target/
+**/*.rs.bk
+Cargo.lock
+
+# Docker
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.*
+
+# Build artifacts
+*.o
+*.obj
+*.exe
+*.out
+*.app
+
+# Dependencies
+node_modules/
+dist/ 

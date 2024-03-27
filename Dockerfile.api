@@ -1,0 +1,69 @@
+FROM rust:1.85 as builder
+
+WORKDIR /usr/src/app
+
+# Create a non-root user
+RUN useradd -m -u 1000 builder
+
+# Copy only Cargo.toml first
+COPY Cargo.toml ./
+
+# Create a dummy main.rs to cache dependencies
+RUN mkdir -p src && \
+    echo "fn main() {}" > src/main.rs
+
+# Set ownership to the builder user
+RUN chown -R builder:builder /usr/src/app
+
+# Switch to non-root user
+USER builder
+
+# Build dependencies only
+RUN cargo build --release
+
+# Now copy the real source code
+COPY --chown=builder:builder src ./src
+
+# Build the application
+RUN cargo build --release
+RUN cargo test --release
+
+FROM debian:bookworm-slim
+
+# Install required dependencies
+RUN apt-get update && \
+    apt-get install -y libsqlite3-0 && \
+    rm -rf /var/lib/apt/lists/*
+
+# Create app directory and set up permissions
+WORKDIR /app
+
+# Create a non-root user
+RUN useradd -m -u 1000 appuser && \
+    # Ensure /app directory exists and has correct permissions
+    mkdir -p /app/data && \
+    chown -R appuser:appuser /app && \
+    # Create an empty database file with correct permissions
+    touch /app/data/ski.db && \
+    chown appuser:appuser /app/data/ski.db && \
+    # Ensure SQLite has write permissions to the directory
+    chmod 755 /app/data && \
+    chmod 644 /app/data/ski.db
+
+# Copy the binary from builder
+COPY --from=builder /usr/src/app/target/release/ski_practice .
+RUN chown appuser:appuser /app/ski_practice && \
+    chmod +x /app/ski_practice
+
+# Switch to non-root user
+USER appuser
+
+EXPOSE 8080
+
+# Use shell form to allow environment variable expansion and add debug output
+CMD echo "Starting server..." && \
+    echo "Current directory: $(pwd)" && \
+    echo "Directory contents: $(ls -la)" && \
+    echo "Data directory contents: $(ls -la data)" && \
+    echo "Database path: $(readlink -f data/ski.db)" && \
+    RUST_LOG=debug ./ski_practice 
